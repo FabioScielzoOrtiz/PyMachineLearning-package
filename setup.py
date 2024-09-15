@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="PyMachineLearning",
-    version="0.0.1",
+    version="0.0.4",
     author="Fabio Scielzo Ortiz",
     author_email="fabioscielzo98@gmail.com",
     description="A package with ML utils.",
@@ -18,6 +18,6 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    install_requires=['pandas','numpy'],
+    install_requires=['pandas','numpy', 'scikit-learn'],
     python_requires=">=3.7"
 )
