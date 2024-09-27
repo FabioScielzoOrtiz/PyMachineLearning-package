@@ -4,6 +4,7 @@ setup.py
 PyMachineLearning/__init__.py
 PyMachineLearning/evaluation.py
 PyMachineLearning/metrics.py
+PyMachineLearning/models.py
 PyMachineLearning/plots.py
 PyMachineLearning/preprocessing.py
 PyMachineLearning.egg-info/PKG-INFO

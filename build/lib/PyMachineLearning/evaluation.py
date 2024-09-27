@@ -199,7 +199,7 @@ class NestedEvaluation: # Outer: CV ; Inner: CV
                 X_train, X_test = X.iloc[train_index,:], X.iloc[test_index,:]
             elif isinstance(X, np.ndarray):
                 X_train, X_test = X[train_index,:], X[test_index,:]
-            Y_train, Y_test = Y[train_index], Y[test_index]
+            Y_train, Y_test = y[train_index], y[test_index]
 
             if self.search_method is None:
                 
@@ -285,7 +285,7 @@ class SemiNestedEvaluation: # Outer: CV ; Inner: Simple
                 X_train, X_test = X.iloc[train_index,:], X.iloc[test_index,:]
             elif isinstance(X, np.ndarray):
                 X_train, X_test = X[train_index,:], X[test_index,:]
-            Y_train, Y_test = Y[train_index], Y[test_index]
+            Y_train, Y_test = y[train_index], y[test_index]
 
             # Inner definition (differential step)
             self.cv = predefine_split(data_size=len(X_train), train_prop=self.train_prop, random=self.random_sv, 
