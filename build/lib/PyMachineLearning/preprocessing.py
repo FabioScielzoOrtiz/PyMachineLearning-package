@@ -1,6 +1,6 @@
 ################################################################################
 import numpy as np
-import numpy as np
+import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.preprocessing import OrdinalEncoder, OneHotEncoder, MinMaxScaler, KBinsDiscretizer, StandardScaler
 from sklearn.experimental import enable_iterative_imputer
@@ -9,11 +9,11 @@ from sklearn.feature_selection import SelectFdr, SelectFpr, SelectKBest, SelectP
 from sklearn.neighbors import KNeighborsRegressor, KNeighborsClassifier
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA as PCA_sk
                           
 ################################################################################
 
-class imputer(BaseEstimator, TransformerMixin):
+class Imputer(BaseEstimator, TransformerMixin):
 
     def __init__(self, apply=True, method='simple_median', n_neighbors=4, n_nearest_features=4):
         self.apply = apply
@@ -47,7 +47,7 @@ class imputer(BaseEstimator, TransformerMixin):
 
 ################################################################################
     
-class encoder(BaseEstimator, TransformerMixin):
+class Encoder(BaseEstimator, TransformerMixin):
 
     def __init__(self, method='ordinal', drop='first'): # drop=None to not remove any dummy
         self.method = method
@@ -84,7 +84,7 @@ class encoder(BaseEstimator, TransformerMixin):
         
 ################################################################################
     
-class scaler(BaseEstimator, TransformerMixin):
+class Scaler(BaseEstimator, TransformerMixin):
 
     def __init__(self, apply=False, method='standard'):
         
@@ -110,7 +110,7 @@ class scaler(BaseEstimator, TransformerMixin):
     
 ################################################################################
     
-class discretizer(BaseEstimator, TransformerMixin):
+class Discretizer(BaseEstimator, TransformerMixin):
 
     def __init__(self, apply=False, n_bins=3, strategy='quantile'):
         self.apply = apply
@@ -132,7 +132,7 @@ class discretizer(BaseEstimator, TransformerMixin):
     
 ################################################################################
     
-class features_selector(BaseEstimator, TransformerMixin):
+class FeaturesSelector(BaseEstimator, TransformerMixin):
 
     def __init__(self, apply=False, method='Fdr', cv=3, k=5, percentile=50, n_neighbors=7, alpha=0.05, n_jobs=None):
         self.apply = apply
@@ -224,7 +224,7 @@ class features_selector(BaseEstimator, TransformerMixin):
     
 ################################################################################
 
-class pca(BaseEstimator, TransformerMixin):
+class PCA(BaseEstimator, TransformerMixin):
 
     def __init__(self, apply=False, n_components=2, random_state=123):
         
@@ -235,7 +235,7 @@ class pca(BaseEstimator, TransformerMixin):
     def fit(self, X, y=None):
         
         if self.apply == True:
-            self.PCA_ = PCA(n_components=self.n_components, random_state=self.random_state)
+            self.PCA_ = PCA_sk(n_components=self.n_components, random_state=self.random_state)
             self.PCA_.fit(X)
 
         return self
@@ -247,11 +247,99 @@ class pca(BaseEstimator, TransformerMixin):
         return X 
 
 ################################################################################
-    
+
+'''
+class ToPandas(BaseEstimator, TransformerMixin):
+    def __init__(self, columns):
+        """
+        Transformer to convert NumPy array back to pandas DataFrame.
+        
+        Parameters:
+        - columns: The list of column names to assign to the DataFrame
+        """
+        self.columns = columns
+
+    def fit(self, X, y=None):
+        """
+        No fitting necessary for this transformer.
+        """
+        return self
+
+    def transform(self, X):
+        """
+        Convert the NumPy array X to a pandas DataFrame with the given columns.
+        
+        Parameters:
+        - X: NumPy array to convert to DataFrame
+        
+        Returns:
+        - pandas DataFrame with the specified column names
+        """
+        return pd.DataFrame(X, columns=self.columns)
+'''
 
 ################################################################################
-    
 
+def set_original_name_prot_attr_after_one_hot(prot_attr, X_pd):
+    col0 = f'{prot_attr}_0'
+    col1 = f'{prot_attr}_1'
+    if col0 in X_pd.columns: # drop_first=False in one-hot encoding
+        X_pd.drop(col0, axis=1)
+    if col1 in X_pd.columns:              
+        X_pd = X_pd.rename(columns={col1: prot_attr}) # rename col1 by prot_attr
+    return X_pd
+
+class ColumnTransformerToPandas(BaseEstimator, TransformerMixin):
+
+    def __init__(self, column_transformer, prot_attr=None, prot_attr_index=True):
+        """
+        Transformer to convert NumPy array back to pandas DataFrame.
+        
+        Parameters:
+        - column_transformer: The fitted ColumnTransformer from which to extract feature names dynamically.
+        - quant_predictors: The original quant predictor names
+        """
+        self.column_transformer = column_transformer
+        self.prot_attr = prot_attr
+        self.prot_attr_index = prot_attr_index
+
+    def fit(self, X, y=None):
+        self.column_transformer.fit(X, y)
+        return self
+
+    def transform(self, X):
+
+        self.quant_predictors = self.column_transformer.get_params()['transformers'][0][2]
+        self.cat_predictors = self.column_transformer.get_params()['transformers'][1][2]
+        
+        try: # If a encoder is used, try, if not, pass.
+            # Updating cat_predictors (only changes if one-hot is used)
+            self.cat_predictors = self.column_transformer.named_transformers_['cat']['encoder'].encoder_.get_feature_names_out(self.cat_predictors).tolist()
+        except:
+            pass
+        
+        # Combine the quant and cat feature names
+        predictors = self.quant_predictors + self.cat_predictors
+        
+        # Transforming X applying column_transformer
+        X = self.column_transformer.transform(X)
+
+        # Convert the transformed NumPy array to a DataFrame with the correct column names
+        X_pd = pd.DataFrame(X, columns=predictors)
+        
+        # If one-hot is used the sensitive variable has a new name ('{prot_attr}_1'), so the original name is imposed
+        # prot_attr is suppose to be a binary variable here
+        if self.prot_attr is not None:
+
+            # Recovering the original name of the prot_attr
+            X_pd = set_original_name_prot_attr_after_one_hot(self.prot_attr, X_pd)
+
+            # Setting the prot_attr as index (required by fairness post-processors)
+            if self.prot_attr_index == True:
+                X_pd.index = X_pd[self.prot_attr]
+               
+        return X_pd
+    
 ################################################################################
     
 
